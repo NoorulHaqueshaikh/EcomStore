@@ -29,6 +29,31 @@ function Stars({ value }) {
   );
 }
 
+// Lightweight skeleton card using Tailwind animate-pulse
+function SkeletonCard() {
+  return (
+    <article className="group relative overflow-hidden rounded-lg border bg-white shadow-sm">
+      <div className="block aspect-square overflow-hidden bg-gray-100 rounded-t-lg animate-pulse" />
+      <div className="p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse" />
+            <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse" />
+          </div>
+          <div className="h-5 w-5 bg-gray-200 rounded animate-pulse" />
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1">
+            <div className="h-4 bg-gray-200 rounded w-24 animate-pulse" />
+            <div className="h-3 bg-gray-200 rounded w-10 animate-pulse" />
+          </div>
+          <div className="h-4 bg-gray-200 rounded w-16 animate-pulse" />
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function Products() {
   const navigate = useNavigate();
   const [productsData, setProductdata] = useState([]);
@@ -36,35 +61,44 @@ function Products() {
   const [busy, setBusy] = useState({});
   const [wishlistCount, setWishlistCount] = useState();
   const [wishlistIds, setWishlistIds] = useState([]);
+  const [cartCounts, setCartCounts] = useState();
+  const [loading, setLoading] = useState(true); // NEW: show skeletons while loading
 
   useEffect(() => {
     getToken();
   }, []);
 
   const getToken = async () => {
-    const res = await fetch("https://ecomstore-backend-qrd5.onrender.com/product", {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    });
-    const token = await res.json();
-    if (token.status) navigate("/");
-    else navigate("/auth/login");
-
-    const response = await fetch("https://ecomstore-backend-qrd5.onrender.com/find/products", {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-    });
-    const products = await response.json();
-    setProductdata(products);
-
-    setWishlisted((prev) => {
-      const next = { ...prev };
-      products.forEach((p) => {
-        if (next[p._id] === undefined) next[p._id] = false;
+    try {
+      const res = await fetch("https://ecomstore-backend-qrd5.onrender.com/product", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
       });
-      return next;
-    });
+      const token = await res.json();
+      if (token.status) navigate("/");
+      else navigate("/auth/login");
+
+      const response = await fetch("https://ecomstore-backend-qrd5.onrender.com/find/products", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+      const products = await response.json();
+      setProductdata(products);
+
+      setWishlisted((prev) => {
+        const next = { ...prev };
+        products.forEach((p) => {
+          if (next[p._id] === undefined) next[p._id] = false;
+        });
+        return next;
+      });
+    } catch (e) {
+      // Optional: handle error state UI here
+      console.error("Fetch products failed:", e);
+    } finally {
+      setLoading(false); // stop skeletons whether success or fail
+    }
   };
 
   const addinlike = async (_id) => {
@@ -108,9 +142,7 @@ function Products() {
       credentials: "include",
     });
     const data = await res.json();
-    const ids = Array.isArray(data.wishlist)
-      ? data.wishlist.map((w) => w.productId)
-      : [];
+    const ids = Array.isArray(data.wishlist) ? data.wishlist.map((w) => w.productId) : [];
     setWishlistIds(ids);
 
     setWishlisted((prev) => {
@@ -153,7 +185,6 @@ function Products() {
     }
   };
 
-  const [cartCounts, setCartCounts] = useState();
   const cartCount = async () => {
     const res = await fetch("https://ecomstore-backend-qrd5.onrender.com/get/cart", {
       method: "GET",
@@ -170,7 +201,6 @@ function Products() {
     <MyContext.Provider value={{ wishlistCount, cartCounts }}>
       <Navbar />
       <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        {/* Removed "View all" link block */}
         <div className="mb-6">
           <h2 className="text-xl font-semibold tracking-tight text-gray-900">
             Featured Products
@@ -181,70 +211,71 @@ function Products() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {productsData.map((p) => {
-            const isWished = !!wishlisted[p._id];
-            const isBusy = !!busy[p._id];
-            return (
-              <article
-                key={p._id}
-                className="group relative overflow-hidden rounded-lg border bg-white shadow-sm hover:shadow-md transition-shadow"
-              >
-                <button
-                  onClick={() => navigate(`/product/${p._id}`)}
-                  className="block aspect-square overflow-hidden bg-gray-50 rounded-t-lg"
-                >
-                  <img
-                    src={p.images?.[0]}
-                    alt={p.name}
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105 rounded-t-lg"
-                    loading="lazy"
-                  />
-                </button>
-
-                <div className="p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h3 className="line-clamp-1 text-sm font-semibold text-gray-900">
-                        {p.name}
-                      </h3>
-                      <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">
-                        {p.brand}
-                      </p>
-                    </div>
-
+          {loading
+            ? Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} />)
+            : productsData.map((p) => {
+                const isWished = !!wishlisted[p._id];
+                const isBusy = !!busy[p._id];
+                return (
+                  <article
+                    key={p._id}
+                    className="group relative overflow-hidden rounded-lg border bg-white shadow-sm hover:shadow-md transition-shadow"
+                  >
                     <button
-                      type="button"
-                      aria-label={isWished ? "Remove from wishlist" : "Add to wishlist"}
-                      onClick={() => toggleWish(p._id)}
-                      disabled={isBusy}
-                      className={`rounded p-1 hover:bg-rose-50 ${
-                        isWished ? "text-rose-600" : "text-gray-500 hover:text-rose-600"
-                      } ${isBusy ? "opacity-60 cursor-not-allowed" : ""}`}
+                      onClick={() => navigate(`/product/${p._id}`)}
+                      className="block aspect-square overflow-hidden bg-gray-50 rounded-t-lg"
                     >
-                      {isWished ? (
-                        <HeartSolid className="h-5 w-5" />
-                      ) : (
-                        <HeartOutline className="h-5 w-5" />
-                      )}
+                      <img
+                        src={p.images?.[0]}
+                        alt={p.name}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105 rounded-t-lg"
+                        loading="lazy"
+                      />
                     </button>
-                  </div>
 
-                  {/* Footer: keep price visible on very small screens */}
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-                      <Stars value={p.ratings} />
-                      <span className="text-xs text-gray-500 truncate">
-                        ({p.numReviews})
-                      </span>
+                    <div className="p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h3 className="line-clamp-1 text-sm font-semibold text-gray-900">
+                            {p.name}
+                          </h3>
+                          <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">
+                            {p.brand}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          aria-label={isWished ? "Remove from wishlist" : "Add to wishlist"}
+                          onClick={() => toggleWish(p._id)}
+                          disabled={isBusy}
+                          className={`rounded p-1 hover:bg-rose-50 ${
+                            isWished ? "text-rose-600" : "text-gray-500 hover:text-rose-600"
+                          } ${isBusy ? "opacity-60 cursor-not-allowed" : ""}`}
+                        >
+                          {isWished ? (
+                            <HeartSolid className="h-5 w-5" />
+                          ) : (
+                            <HeartOutline className="h-5 w-5" />
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                          <Stars value={p.ratings} />
+                          <span className="text-xs text-gray-500 truncate">
+                            ({p.numReviews})
+                          </span>
+                        </div>
+                        <p className="flex-none whitespace-nowrap text-sm font-semibold text-gray-900 sm:text-sm [@media(max-width:360px)]:text-[13px]">
+                          ₹{Number(p.price || 0).toLocaleString("en-IN")}
+                        </p>
+                      </div>
                     </div>
-                    <p className="flex-none whitespace-nowrap text-sm font-semibold text-gray-900 sm:text-sm [@media(max-width:360px)]:text-[13px]">
-                      ₹{Number(p.price || 0).toLocaleString("en-IN")}
-                    </p>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
+                  </article>
+                );
+              })}
         </div>
       </section>
     </MyContext.Provider>
